@@ -36,7 +36,7 @@ class MexicanTrainApp:
             st.session_state.ronda_actual = 12
 
     def cargar_resultados(self, nombre_grupo, partida_numero, ronda, resultados):
-        partida = st.session_state.grupos[nombre_grupo]['partidas'][partida_numero - 1]
+        partida = st.session_state.grupos[grupo_seleccionado]['partidas'][partida_numero - 1]
 
         # Si la ronda ya existe, actualizamos
         rondas_existentes = [r['ronda'] for r in partida['rondas']]
