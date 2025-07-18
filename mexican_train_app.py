@@ -36,7 +36,7 @@ class MexicanTrainApp:
             st.session_state.ronda_actual = 12
 
     def cargar_resultados(self, nombre_grupo, partida_numero, ronda, resultados):
-        partida = st.session_state.grupos[grupo_seleccionado]['partidas'][partida_numero - 1]
+        partida = st.session_state.grupos[nombre_grupo]['partidas'][partida_numero - 1]
 
         # Si la ronda ya existe, actualizamos
         rondas_existentes = [r['ronda'] for r in partida['rondas']]
@@ -215,17 +215,16 @@ elif seccion == "Partidas":
                 except ValueError as e:
                     st.warning(str(e))
 
-            st.write("### 📊 Tabla de resultados")
-            # Editable results table
+            st.write("### 📊 Tabla de resultados editable")
             df_tabla = app.ver_tabla_partida(grupo_seleccionado, partida_numero, mostrar_totales)
             edited_results = st.data_editor(df_tabla, num_rows="dynamic")
 
             if st.button("💾 Guardar Cambios en Resultados"):
+                partida = st.session_state.grupos[grupo_seleccionado]['partidas'][partida_numero - 1]
                 for i, row in edited_results.iterrows():
                     ronda_val = row['Ronda']
                     if ronda_val == 'Total' or ronda_val == 'Ganador':
                         continue
-                    # Quitar el emoji si existe
                     if isinstance(ronda_val, str) and ronda_val.startswith("🁢 "):
                         ronda_val = ronda_val[2:].strip()
                     ronda_num = int(ronda_val)
@@ -238,11 +237,10 @@ elif seccion == "Partidas":
                             except:
                                 val_int = 0
                             resultados_actualizados[jugador] = val_int
-                    # Actualizar la ronda con los datos editados
                     partida['rondas'] = [r for r in partida['rondas'] if r['ronda'] != ronda_num]
                     partida['rondas'].append({'ronda': ronda_num, 'resultados': resultados_actualizados})
                 # Recalcular totales
-                partida['puntajes_totales'] = {j:0 for j in st.session_state.grupos[grupo_seleccionado]['jugadores']}
+                partida['puntajes_totales'] = {j: 0 for j in st.session_state.grupos[grupo_seleccionado]['jugadores']}
                 for r in partida['rondas']:
                     if isinstance(r['ronda'], int):
                         for jugador, puntaje in r['resultados'].items():
