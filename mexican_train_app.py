@@ -128,7 +128,7 @@ st.markdown("# 🚂 Mexican Train - Gestor de Partidas")
 
 app = MexicanTrainApp()
 
-seccion = st.sidebar.radio("Seleccioná una sección", ["Administración de Grupos", "Partidas", "Ranking"])
+seccion = st.sidebar.radio("Seleccioná una sección", ["Partidas", "Administración de Grupos", "Ranking"])
 
 if seccion == "Administración de Grupos":
     st.write("## ➕ Crear o administrar grupos")
@@ -216,8 +216,39 @@ elif seccion == "Partidas":
                     st.warning(str(e))
 
             st.write("### 📊 Tabla de resultados")
+            # Editable results table
             df_tabla = app.ver_tabla_partida(grupo_seleccionado, partida_numero, mostrar_totales)
-            st.dataframe(df_tabla.style.hide(axis='index'), use_container_width=True)
+            edited_results = st.data_editor(df_tabla, num_rows="dynamic")
+
+            if st.button("💾 Guardar Cambios en Resultados"):
+                for i, row in edited_results.iterrows():
+                    ronda_val = row['Ronda']
+                    if ronda_val == 'Total' or ronda_val == 'Ganador':
+                        continue
+                    # Quitar el emoji si existe
+                    if isinstance(ronda_val, str) and ronda_val.startswith("🁢 "):
+                        ronda_val = ronda_val[2:].strip()
+                    ronda_num = int(ronda_val)
+                    resultados_actualizados = {}
+                    for jugador in edited_results.columns:
+                        if jugador != 'Ronda':
+                            val = row[jugador]
+                            try:
+                                val_int = int(val)
+                            except:
+                                val_int = 0
+                            resultados_actualizados[jugador] = val_int
+                    # Actualizar la ronda con los datos editados
+                    partida['rondas'] = [r for r in partida['rondas'] if r['ronda'] != ronda_num]
+                    partida['rondas'].append({'ronda': ronda_num, 'resultados': resultados_actualizados})
+                # Recalcular totales
+                partida['puntajes_totales'] = {j:0 for j in st.session_state.grupos[grupo_seleccionado]['jugadores']}
+                for r in partida['rondas']:
+                    if isinstance(r['ronda'], int):
+                        for jugador, puntaje in r['resultados'].items():
+                            partida['puntajes_totales'][jugador] += puntaje
+                st.success("Cambios guardados")
+                st.rerun()
 
             if st.button("🔄 Reiniciar partida"):
                 app.reiniciar_partida(grupo_seleccionado, partida_numero)
