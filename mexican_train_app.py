@@ -30,6 +30,11 @@ class MexicanTrainApp:
         st.session_state.grupos[nombre_grupo]['partidas'].append(partida)
         st.session_state.ronda_actual = 12
 
+    def reiniciar_partida(self, nombre_grupo, partida_numero):
+        if nombre_grupo in st.session_state.grupos and len(st.session_state.grupos[nombre_grupo]['partidas']) >= partida_numero:
+            st.session_state.grupos[nombre_grupo]['partidas'][partida_numero - 1] = {'rondas': [], 'puntajes_totales': {j: 0 for j in st.session_state.grupos[nombre_grupo]['jugadores']}}
+            st.session_state.ronda_actual = 12
+
     def cargar_resultados(self, nombre_grupo, partida_numero, ronda, resultados):
         partida = st.session_state.grupos[nombre_grupo]['partidas'][partida_numero - 1]
 
@@ -104,22 +109,26 @@ class MexicanTrainApp:
         df_ranking = df_ranking.drop(columns=['Trofeo'])
         return df_ranking
 
+
 # ------------------------ Interfaz Streamlit ------------------------
 
-st.set_page_config(page_title="Mexican Train", layout="wide")
+st.set_page_config(page_title="Mexican Train - Gestor de Partidas", layout="wide")
 st.markdown("""
 <style>
     .main {background-color: #f5f5f5;}
     .stTextInput > div > div > input {background-color: #ffffff;}
-    .stButton > button {background-color: #4CAF50; color: white; border: none; padding: 8px 16px;}
+    .stButton > button {
+        background-color: #4CAF50; color: white; border: none; padding: 8px 16px; margin-top: 4px;
+    }
     .stDataFrame {background-color: #ffffff;}
 </style>
 """, unsafe_allow_html=True)
+
 st.markdown("# 🚂 Mexican Train - Gestor de Partidas")
 
-seccion = st.sidebar.radio("Seleccioná una sección", ["Administración de Grupos", "Partidas", "Ranking"])
-
 app = MexicanTrainApp()
+
+seccion = st.sidebar.radio("Seleccioná una sección", ["Administración de Grupos", "Partidas", "Ranking"])
 
 if seccion == "Administración de Grupos":
     st.write("## ➕ Crear o administrar grupos")
@@ -198,7 +207,6 @@ elif seccion == "Partidas":
 
             if st.button("✅ Cargar Resultados"):
                 resultados = {jugador: int(edited_df.loc[jugador, "Puntaje"]) for jugador in edited_df.index}
-
                 try:
                     app.cargar_resultados(grupo_seleccionado, partida_numero, ronda, resultados)
                     st.success("Resultados cargados correctamente")
@@ -211,13 +219,21 @@ elif seccion == "Partidas":
             df_tabla = app.ver_tabla_partida(grupo_seleccionado, partida_numero, mostrar_totales)
             st.dataframe(df_tabla.style.hide(axis='index'), use_container_width=True)
 
+            if st.button("🔄 Reiniciar partida"):
+                app.reiniciar_partida(grupo_seleccionado, partida_numero)
+                st.success("✅ Partida reiniciada")
+                st.session_state.ronda_actual = 12
+                st.rerun()
+
             st.write("### 🏆 Ranking histórico del grupo")
-            st.dataframe(app.ver_ranking(grupo_seleccionado), use_container_width=True)
+            df_ranking = app.ver_ranking(grupo_seleccionado)
+            st.dataframe(df_ranking, use_container_width=True)
 
 elif seccion == "Ranking":
     if st.session_state.grupos:
         grupo_seleccionado = st.selectbox("Seleccioná grupo para ver ranking histórico", list(st.session_state.grupos.keys()))
         st.write(f"### 🏆 Ranking histórico del grupo '{grupo_seleccionado}'")
-        st.dataframe(app.ver_ranking(grupo_seleccionado), use_container_width=True)
+        df_ranking = app.ver_ranking(grupo_seleccionado)
+        st.dataframe(df_ranking, use_container_width=True)
     else:
         st.info("No hay grupos creados todavía.")
