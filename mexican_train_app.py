@@ -64,7 +64,10 @@ class MexicanTrainApp:
             key=lambda x: x['ronda'] if isinstance(x['ronda'], int) else -1,
             reverse=True
         ):
-            fila = {'Ronda': ronda_data['ronda']}
+            ronda_label = ronda_data['ronda']
+            if isinstance(ronda_label, int):
+                ronda_label = f"🁢 {ronda_label}"  # Emoji ficha dominó al lado
+            fila = {'Ronda': ronda_label}
             fila.update(ronda_data['resultados'])
             filas.append(fila)
 
@@ -95,8 +98,11 @@ class MexicanTrainApp:
 
     def ver_ranking(self, nombre_grupo):
         ranking = st.session_state.grupos[nombre_grupo]['ranking']
-        return pd.DataFrame(sorted(ranking.items(), key=lambda item: item[1], reverse=True), columns=['Jugador', 'Partidas Ganadas'])
-
+        df_ranking = pd.DataFrame(sorted(ranking.items(), key=lambda item: item[1], reverse=True), columns=['Jugador', 'Partidas Ganadas'])
+        df_ranking['Trofeo'] = df_ranking['Partidas Ganadas'].apply(lambda x: "🏆" if x > 0 else "")
+        df_ranking['Partidas Ganadas'] = df_ranking.apply(lambda row: f"{row['Partidas Ganadas']} {row['Trofeo']}", axis=1)
+        df_ranking = df_ranking.drop(columns=['Trofeo'])
+        return df_ranking
 
 # ------------------------ Interfaz Streamlit ------------------------
 
@@ -111,7 +117,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.markdown("# 🚂 Mexican Train - Gestor de Partidas")
 
-seccion = st.sidebar.radio("Seleccioná una sección", ["Administración de Grupos", "Partidas"])
+seccion = st.sidebar.radio("Seleccioná una sección", ["Administración de Grupos", "Partidas", "Ranking"])
 
 app = MexicanTrainApp()
 
@@ -177,8 +183,10 @@ elif seccion == "Partidas":
         if st.session_state.grupos[grupo_seleccionado]['partidas']:
             partida_numero = len(st.session_state.grupos[grupo_seleccionado]['partidas'])
 
-            # Cargar resultados ronda actual
-            st.markdown(f"### 📋 Cargar puntajes ronda **{st.session_state.ronda_actual}**")
+            mostrar_totales = st.checkbox("Mostrar total de la partida", value=False)
+
+            st.markdown(f"### 📋 Cargando resultados para la ronda **{st.session_state.ronda_actual}**")
+
             df_input = pd.DataFrame(
                 [[0] for _ in st.session_state.grupos[grupo_seleccionado]['jugadores']],
                 index=st.session_state.grupos[grupo_seleccionado]['jugadores'],
@@ -190,6 +198,7 @@ elif seccion == "Partidas":
 
             if st.button("✅ Cargar Resultados"):
                 resultados = {jugador: int(edited_df.loc[jugador, "Puntaje"]) for jugador in edited_df.index}
+
                 try:
                     app.cargar_resultados(grupo_seleccionado, partida_numero, ronda, resultados)
                     st.success("Resultados cargados correctamente")
@@ -198,44 +207,17 @@ elif seccion == "Partidas":
                 except ValueError as e:
                     st.warning(str(e))
 
-            # Edición de resultados ya cargados
-            partida = st.session_state.grupos[grupo_seleccionado]['partidas'][partida_numero - 1]
-            rondas = sorted(partida['rondas'], key=lambda x: x['ronda'] if isinstance(x['ronda'], int) else -1, reverse=True)
-
-            data = {}
-            for r in rondas:
-                data[str(r['ronda'])] = [r['resultados'].get(j, 0) for j in st.session_state.grupos[grupo_seleccionado]['jugadores']]
-
-            df_edicion = pd.DataFrame(data, index=st.session_state.grupos[grupo_seleccionado]['jugadores']).T
-
-            st.markdown("### ✏️ Editar resultados cargados")
-            edited_df = st.data_editor(df_edicion, num_rows="dynamic")
-
-            if st.button("💾 Guardar Cambios"):
-                for ronda_str, puntajes in edited_df.iterrows():
-                    if ronda_str == 'Ganador':
-                        continue
-                    ronda_int = int(ronda_str)
-                    resultados = {jugador: int(puntajes[jugador]) for jugador in puntajes.index}
-                    partida['rondas'] = [r for r in partida['rondas'] if r['ronda'] != ronda_int]
-                    partida['rondas'].append({'ronda': ronda_int, 'resultados': resultados})
-                partida['puntajes_totales'] = {j:0 for j in st.session_state.grupos[grupo_seleccionado]['jugadores']}
-                for r in partida['rondas']:
-                    if isinstance(r['ronda'], int):
-                        for jugador, puntaje in r['resultados'].items():
-                            partida['puntajes_totales'][jugador] += puntaje
-                st.success("✅ Cambios guardados")
-                st.rerun()
-
-            # Mostrar tabla resumen con opción de ocultar totales
-            mostrar_totales = st.checkbox("Mostrar total de la partida", value=False)
+            st.write("### 📊 Tabla de resultados")
             df_tabla = app.ver_tabla_partida(grupo_seleccionado, partida_numero, mostrar_totales)
-            st.write("### 📊 Tabla de resultados actualizada")
             st.dataframe(df_tabla.style.hide(axis='index'), use_container_width=True)
 
-            # Mostrar ranking histórico
             st.write("### 🏆 Ranking histórico del grupo")
             st.dataframe(app.ver_ranking(grupo_seleccionado), use_container_width=True)
 
+elif seccion == "Ranking":
+    if st.session_state.grupos:
+        grupo_seleccionado = st.selectbox("Seleccioná grupo para ver ranking histórico", list(st.session_state.grupos.keys()))
+        st.write(f"### 🏆 Ranking histórico del grupo '{grupo_seleccionado}'")
+        st.dataframe(app.ver_ranking(grupo_seleccionado), use_container_width=True)
     else:
-        st.info("ℹ️ No hay grupos creados todavía.")
+        st.info("No hay grupos creados todavía.")
